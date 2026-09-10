@@ -54,6 +54,5 @@ $$;
 revoke all on function public.nibutaku_vote(text, int) from public;
 grant execute on function public.nibutaku_vote(text, int) to anon, authenticated;
 
--- 種データ(公開直後でも割合が出るようにする想定値)は js/questions.js の sa/sb 側に持たせ、
--- クライアントが「種 + このテーブルの実投票」を合算して表示する。
--- そのためこのテーブルは空スタートで、実際の投票だけが積み上がる。
+-- このテーブルは空スタート。表示する割合は「実際に人が投じた票」だけで算出する。
+-- 票が少ない/無い質問は割合を出さず「回答 N 件」「最初の1人」と表示する。

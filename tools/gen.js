@@ -294,15 +294,6 @@ const body =
   "// 一生二択 ─ 質問データ（tools/gen.js が自動生成）\n" +
   "// カテゴリ: money 時間=time 体=body 人間関係=rel 食=food 仕事学校=work\n" +
   "//           tech 社会=society 能力空想=power 日常=daily 運=luck 知りたい=truth\n\n" +
-  "// id から決定論的に『それっぽい初期割合』を作る（サーバー未接続時／公開直後用の種）\n" +
-  "window.seedSplit = function (id) {\n" +
-  "  var h = 2166136261;\n" +
-  "  for (var i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = (h * 16777619) >>> 0; }\n" +
-  "  var pa = 30 + (h % 41);            // A側 30〜70%\n" +
-  "  var vol = 90 + ((h >>> 7) % 320);  // 総票数 90〜410\n" +
-  "  var a = Math.round(vol * pa / 100);\n" +
-  "  return { a: a, b: vol - a };\n" +
-  "};\n\n" +
   "window.CATEGORIES = [\n" +
   '  { key: "all",     label: "すべて",     emoji: "🎲" },\n' +
   '  { key: "money",   label: "お金",       emoji: "💰" },\n' +

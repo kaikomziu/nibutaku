@@ -16,7 +16,8 @@
   Q.forEach(function (q) { qmap[q.id] = q; });
 
   var state = load();
-  var serverTally = null;      // { qid: {a,b} }
+  var serverTally = null;      // { qid: {a,b} }（実投票のみ）
+  var serverOk = false;        // fetchAll か vote が一度でも成功したか
   var current = null;          // 表示中の qid
   var returnTo = "random";     // "random" | "browse"
   var revealed = false;
@@ -37,14 +38,18 @@
     return k;
   }
 
-  // 表示する割合 = 種(seedSplit) + サーバー実投票
-  function combined(q) {
-    var s = window.seedSplit ? window.seedSplit(q.id) : { a: 50, b: 50 };
-    var a = s.a, b = s.b;
-    if (serverTally && serverTally[q.id]) { a += serverTally[q.id].a; b += serverTally[q.id].b; }
-    return { a: a, b: b };
+  // 表示する割合は「実際に人が選んだ票」だけで算出する（種データは使わない）
+  function tallyOf(q) {
+    var t = (serverTally && serverTally[q.id]) || { a: 0, b: 0 };
+    return { a: t.a || 0, b: t.b || 0, total: (t.a || 0) + (t.b || 0) };
   }
-  function pctA(q) { var c = combined(q); return Math.round(c.a / ((c.a + c.b) || 1) * 100); }
+  var MIN_VOTES = 5; // これ未満は割合を表示しない
+  // 票が MIN_VOTES 未満なら null。あれば A の割合(%)
+  function pctA(q) {
+    var t = tallyOf(q);
+    if (t.total < MIN_VOTES) return null;
+    return Math.round(t.a / t.total * 100);
+  }
 
   if (/[?&]reset\b/.test(location.search)) {
     try { localStorage.removeItem(SKEY); } catch (e) {}
@@ -100,22 +105,53 @@
     $("btnA").classList.toggle("picked", choice === 0);
     $("btnB").classList.toggle("picked", choice === 1);
 
-    var c = combined(q), total = c.a + c.b || 1;
-    var pa = Math.round(c.a / total * 100), pb = 100 - pa;
+    var t = tallyOf(q);
+    var setW = function (pa) {
+      $("btnA").querySelector(".fill").style.width = (pa == null ? 0 : pa) + "%";
+      $("btnB").querySelector(".fill").style.width = (pa == null ? 0 : 100 - pa) + "%";
+    };
+    $("pctA").textContent = "";
+    $("pctB").textContent = "";
+
+    // サーバーに繋がっていない → 世界の割合は出せない
+    if (!serverOk) {
+      setW(null);
+      $("verdict").innerHTML = '<span class="min">オフライン</span>：世界の割合はいま取得できません';
+      $("tally").textContent = "";
+      return;
+    }
+    // まだ票がほとんど無い（自分の1票のみ or ゼロ）
+    if (t.total <= 1) {
+      setW(null);
+      $("verdict").innerHTML = 'あなたが <span class="min">最初の1人</span>。ここから世界の割合が集まります';
+      $("tally").textContent = "";
+      return;
+    }
+    // 数票だけ → 割合はまだ出さない
+    if (t.total < MIN_VOTES) {
+      setW(null);
+      $("verdict").innerHTML = 'まだ集計中（回答 <span class="min">' + t.total + '</span> 件）。もう少し集まると割合が出ます';
+      $("tally").textContent = "";
+      return;
+    }
+
+    var pa = Math.round(t.a / t.total * 100), pb = 100 - pa;
     $("pctA").textContent = pa + "%";
     $("pctB").textContent = pb + "%";
-    var setW = function () {
-      $("btnA").querySelector(".fill").style.width = pa + "%";
-      $("btnB").querySelector(".fill").style.width = pb + "%";
-    };
-    if (instant) setW(); else setTimeout(setW, 60);
+    if (instant) setW(pa); else setTimeout(function () { setW(pa); }, 60);
 
-    var my = choice === 0 ? pa : pb, other = 100 - my, t;
-    if (my > other) t = '世界の <span class="maj">' + my + '%</span> が、あなたと同じ選択';
-    else if (my < other) t = 'あなたは <span class="min">少数派</span>。同じ選択は世界の ' + my + '%';
-    else t = '世界はちょうど真っ二つ（' + my + '% : ' + other + '%）';
-    $("verdict").innerHTML = t;
-    $("tally").textContent = "これまでに " + (c.a + c.b).toLocaleString() + " 人が回答";
+    var my = choice === 0 ? pa : pb, other = 100 - my, txt;
+    if (t.total < 30) {
+      txt = 'いまのところ <span class="min">' + my + '%</span> があなたと同じ（回答 ' + t.total + ' 件）';
+    } else if (my > other) {
+      txt = '世界の <span class="maj">' + my + '%</span> が、あなたと同じ選択';
+    } else if (my < other) {
+      txt = 'あなたは <span class="min">少数派</span>。同じ選択は世界の ' + my + '%';
+    } else {
+      txt = '世界はちょうど真っ二つ（' + my + '% : ' + other + '%）';
+    }
+    $("verdict").innerHTML = txt;
+    $("tally").textContent = "これまでに " + t.total.toLocaleString() + " 人が回答";
   }
 
   function choose(choice) {
@@ -123,11 +159,18 @@
     var q = qmap[current];
     state.answers[q.id] = choice;
     save();
+    // 自分の1票を先に反映（サーバー応答を待たずに割合を出す）
+    serverTally = serverTally || {};
+    var cur = serverTally[q.id] || { a: 0, b: 0 };
+    serverTally[q.id] = {
+      a: (cur.a || 0) + (choice === 0 ? 1 : 0),
+      b: (cur.b || 0) + (choice === 1 ? 1 : 0),
+    };
     reveal(q, choice, false);
     $("qans").textContent = "回答 " + answeredCount();
     Net.vote(q.id, choice).then(function (res) {
       if (res) {
-        serverTally = serverTally || {};
+        serverOk = true;
         serverTally[q.id] = res;
         if (revealed && current === q.id) reveal(q, choice, true);
       }
@@ -173,9 +216,14 @@
     $("qlist").innerHTML = slice.map(function (q) {
       var mk = '<span class="mk non">未回答</span>';
       if (q.id in state.answers) {
-        var choice = state.answers[q.id], pa = pctA(q), my = choice === 0 ? pa : 100 - pa;
-        var cls = my > 50 ? "maj" : (my < 50 ? "min" : "non");
-        mk = '<span class="mk ' + cls + '">' + (choice === 0 ? "A" : "B") + " " + my + '%</span>';
+        var choice = state.answers[q.id], pa = pctA(q);
+        if (pa == null) {
+          mk = '<span class="mk non">' + (choice === 0 ? "A" : "B") + ' 回答ずみ</span>';
+        } else {
+          var my = choice === 0 ? pa : 100 - pa;
+          var cls = my > 50 ? "maj" : (my < 50 ? "min" : "non");
+          mk = '<span class="mk ' + cls + '">' + (choice === 0 ? "A" : "B") + " " + my + '%</span>';
+        }
       }
       return '<button class="qrow" data-id="' + q.id + '"><span class="qtext">' +
         esc(q.a) + " ／ " + esc(q.b) + "</span>" + mk + "</button>";
@@ -194,12 +242,18 @@
     var maj = 0, min = 0, rows = "";
     Q.forEach(function (q) {
       if (!(q.id in state.answers)) return;
-      var choice = state.answers[q.id], pa = pctA(q), my = choice === 0 ? pa : 100 - pa;
-      var tie = my === 50, isMaj = my > 50;
-      if (!tie) { if (isMaj) maj++; else min++; }
-      var label = tie ? '<span class="rp">五分五分</span>'
-        : isMaj ? '<span class="rp maj">多数派 ' + my + '%</span>'
-                : '<span class="rp min">少数派 ' + my + '%</span>';
+      var choice = state.answers[q.id], pa = pctA(q);
+      var label;
+      if (pa == null) {
+        label = '<span class="rp">集計待ち</span>';
+      } else {
+        var my = choice === 0 ? pa : 100 - pa;
+        var tie = my === 50, isMaj = my > 50;
+        if (!tie) { if (isMaj) maj++; else min++; }
+        label = tie ? '<span class="rp">五分五分</span>'
+          : isMaj ? '<span class="rp maj">多数派 ' + my + '%</span>'
+                  : '<span class="rp min">少数派 ' + my + '%</span>';
+      }
       rows += '<div class="ritem"><div class="rq">' + esc(q.a) + " ／ " + esc(q.b) +
         '</div><div class="rpick">' + (choice === 0 ? "A" : "B") + "：" +
         esc(choice === 0 ? q.a : q.b) + label + "</div></div>";
@@ -265,12 +319,15 @@
 
   // ---- 初期化 ----
   updateResume();
-  var offMsg = "オフライン中：世界の割合はおおよその値で表示しています";
+  var offMsg = "オフライン：世界の割合は表示できません（回答は端末に保存されます）";
   if (!Net.online) { $("off1").textContent = offMsg; $("off2").textContent = offMsg; }
 
   Net.fetchAll().then(function (map) {
     if (map) {
-      serverTally = map;
+      serverOk = true;
+      // すでにこのセッションで投票して serverTally がある場合は上書きしない
+      if (!serverTally) serverTally = map;
+      else Object.keys(map).forEach(function (k) { if (!(k in serverTally)) serverTally[k] = map[k]; });
       $("off1").textContent = "";
       $("off2").textContent = "";
       if (!$("game").classList.contains("hide") && current) {
@@ -278,7 +335,7 @@
         if (q && q.id in state.answers) reveal(q, state.answers[q.id], true);
       }
       if (!$("browse").classList.contains("hide")) renderList();
-    } else if (Net.online) {
+    } else {
       $("off1").textContent = offMsg;
       $("off2").textContent = offMsg;
     }

@@ -2,16 +2,6 @@
 // カテゴリ: money 時間=time 体=body 人間関係=rel 食=food 仕事学校=work
 //           tech 社会=society 能力空想=power 日常=daily 運=luck 知りたい=truth
 
-// id から決定論的に『それっぽい初期割合』を作る（サーバー未接続時／公開直後用の種）
-window.seedSplit = function (id) {
-  var h = 2166136261;
-  for (var i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = (h * 16777619) >>> 0; }
-  var pa = 30 + (h % 41);            // A側 30〜70%
-  var vol = 90 + ((h >>> 7) % 320);  // 総票数 90〜410
-  var a = Math.round(vol * pa / 100);
-  return { a: a, b: vol - a };
-};
-
 window.CATEGORIES = [
   { key: "all",     label: "すべて",     emoji: "🎲" },
   { key: "money",   label: "お金",       emoji: "💰" },
