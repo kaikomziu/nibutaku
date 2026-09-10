@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>一生二択 - 一生に関わる二択を選び続けるサイト</title>
-<meta name="description" content="『一生、学校に行かなくていい。ただし宿題5倍』みたいな絶妙に悩む二択を選ぶだけ。選ぶと世界の何%が同じ選択をしたか見られる。全50問。">
+<meta name="description" content="『一生、学校に行かなくていい。ただし宿題5倍』みたいな絶妙に悩む二択を選ぶだけ。選ぶと世界の何%が同じ選択をしたか見られる。500問以上、ランダムでも一覧からでも。">
 <link rel="canonical" href="https://kaikomziu.github.io/nibutaku/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="一生二択 - 一生に関わる二択を選び続けるサイト">
-<meta property="og:description" content="絶妙に悩む二択を選ぶだけ。選ぶと世界の何%が同じ選択をしたか見られる。全50問。">
+<meta property="og:description" content="絶妙に悩む二択を選ぶだけ。選ぶと世界の何%が同じ選択をしたか見られる。500問以上。">
 <meta property="og:url" content="https://kaikomziu.github.io/nibutaku/">
 <meta name="twitter:card" content="summary">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A4%94%3C/text%3E%3C/svg%3E">
@@ -27,43 +27,48 @@
     font-family:"Hiragino Kaku Gothic ProN","Yu Gothic UI",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     min-height:100dvh; line-height:1.7;
   }
-  .wrap{max-width:680px; margin:0 auto; padding:18px 16px 60px; min-height:100dvh; display:flex; flex-direction:column;}
-  header{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px;}
-  .logo{font-weight:800; letter-spacing:.14em; font-size:15px;}
+  .wrap{max-width:680px; margin:0 auto; padding:16px 16px 60px; min-height:100dvh; display:flex; flex-direction:column;}
+  header{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;}
+  .logo{font-weight:800; letter-spacing:.14em; font-size:15px; background:none; border:0; color:var(--fg); cursor:pointer; padding:4px 0;}
   .logo b{color:var(--a);}
   .logo i{color:var(--b); font-style:normal;}
+  .hnav{display:flex; gap:6px;}
   .hbtn{
     background:var(--bg2); color:var(--mut); border:1px solid var(--line);
-    border-radius:999px; padding:7px 13px; font-size:12px; cursor:pointer;
+    border-radius:999px; padding:7px 12px; font-size:12px; cursor:pointer; white-space:nowrap;
   }
   .hbtn:hover{color:var(--fg); border-color:#3a4256;}
-  main{flex:1; display:flex; flex-direction:column; justify-content:center;}
+  .hbtn.on{color:var(--fg); border-color:var(--a);}
+  main{flex:1; display:flex; flex-direction:column;}
+  #game, #intro{justify-content:center;}
+  main > section{flex:1; display:flex; flex-direction:column;}
   .hide{display:none !important;}
 
   /* ---- intro ---- */
-  #intro h1{font-size:26px; line-height:1.4; margin:.2em 0 .1em; letter-spacing:.02em;}
-  #intro p{color:var(--mut); font-size:14px; margin:.4em 0;}
+  #intro{align-items:stretch;}
+  #intro .qlead{text-align:center;}
+  #intro h1{font-size:25px; line-height:1.45; margin:.2em 0 .1em; letter-spacing:.02em; text-align:center;}
+  #intro p{color:var(--mut); font-size:14px; margin:.5em 0; text-align:center;}
+  .btnrow{margin-top:22px; display:flex; flex-direction:column; gap:10px;}
   .start{
-    margin-top:22px; width:100%; padding:16px; border:0; border-radius:14px;
+    width:100%; padding:16px; border:0; border-radius:14px;
     background:linear-gradient(135deg,var(--a),var(--b)); color:#0c0e14;
     font-weight:800; font-size:17px; letter-spacing:.06em; cursor:pointer;
   }
+  .start.sub{background:var(--bg2); border:1px solid var(--line); color:var(--fg); font-size:15px;}
   .start:active{transform:translateY(1px);}
-
-  /* ---- progress ---- */
-  .prog{display:flex; align-items:center; gap:10px; margin-bottom:14px; color:var(--mut); font-size:12px;}
-  .progbar{flex:1; height:6px; background:var(--bg2); border-radius:999px; overflow:hidden;}
-  .progbar span{display:block; height:100%; background:linear-gradient(90deg,var(--a),var(--b)); width:0; transition:width .4s ease;}
+  .resume{text-align:center; color:var(--mut); font-size:12px; margin-top:14px;}
 
   /* ---- question ---- */
-  .qlead{text-align:center; color:var(--mut); font-size:13px; letter-spacing:.1em; margin-bottom:4px;}
+  .qtop{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; color:var(--mut); font-size:12px;}
+  .qtop .cat{background:var(--bg2); border:1px solid var(--line); border-radius:999px; padding:4px 10px;}
   .qtitle{text-align:center; font-size:19px; font-weight:800; margin:0 0 18px; letter-spacing:.02em;}
   .choices{display:flex; flex-direction:column; gap:12px;}
   .choice{
     position:relative; text-align:left; width:100%; cursor:pointer;
     background:var(--card); border:1px solid var(--line); border-radius:16px;
     padding:18px 16px; color:var(--fg); font-size:16px; font-weight:600; line-height:1.6;
-    transition:border-color .15s, transform .1s, background .2s;
+    transition:border-color .15s, transform .1s, background .2s; overflow:hidden;
   }
   .choice .tag{
     display:inline-block; font-size:11px; font-weight:800; letter-spacing:.1em;
@@ -75,10 +80,8 @@
   .choice.cb:hover{border-color:var(--b);}
   .choice:active{transform:scale(.99);}
   .choice[disabled]{cursor:default;}
-
-  /* reveal state */
   .choice .fill{
-    position:absolute; left:0; top:0; bottom:0; width:0; border-radius:16px 0 0 16px;
+    position:absolute; left:0; top:0; bottom:0; width:0;
     transition:width .8s cubic-bezier(.2,.7,.2,1); z-index:0; opacity:.16;
   }
   .choice.ca .fill{background:var(--a);}
@@ -92,19 +95,12 @@
   .choice.cb .pct{color:var(--b);}
   .revealed .choice .pct{opacity:1;}
   .revealed .choice{padding-right:74px;}
-  .choice.picked{border-width:2px;}
   .choice.ca.picked{border-color:var(--a); box-shadow:0 0 0 3px rgba(34,195,201,.15);}
   .choice.cb.picked{border-color:var(--b); box-shadow:0 0 0 3px rgba(242,102,138,.15);}
-  .choice .mine{
-    display:none; font-size:11px; font-weight:800; letter-spacing:.08em; color:var(--mut);
-    margin-top:8px;
-  }
+  .choice .mine{display:none; font-size:11px; font-weight:800; letter-spacing:.08em; color:var(--mut); margin-top:8px;}
   .picked .mine{display:block;}
 
-  .verdict{
-    text-align:center; margin:18px 0 6px; font-size:15px; font-weight:800; min-height:1.4em;
-    opacity:0; transition:opacity .3s .5s;
-  }
+  .verdict{text-align:center; margin:18px 0 6px; font-size:15px; font-weight:800; min-height:1.4em; opacity:0; transition:opacity .3s .5s;}
   .revealed .verdict{opacity:1;}
   .verdict .maj{color:var(--gold);}
   .verdict .min{color:var(--a);}
@@ -113,36 +109,56 @@
 
   .next{
     margin-top:18px; width:100%; padding:15px; border:0; border-radius:14px;
-    background:var(--fg); color:#0c0e14; font-weight:800; font-size:16px; letter-spacing:.06em;
+    background:var(--fg); color:#0c0e14; font-weight:800; font-size:16px; letter-spacing:.04em;
     cursor:pointer; opacity:0; transition:opacity .3s .5s;
   }
   .revealed .next{opacity:1;}
   .next:active{transform:translateY(1px);}
-  .skip{display:block; margin:14px auto 0; background:none; border:0; color:var(--mut); font-size:12px; text-decoration:underline; cursor:pointer;}
-  .revealed .skip{visibility:hidden;}
+  .subnav{display:flex; gap:14px; justify-content:center; margin-top:14px;}
+  .subnav button{background:none; border:0; color:var(--mut); font-size:12px; text-decoration:underline; cursor:pointer;}
+  .revealed .subnav .skiponly{visibility:hidden;}
+
+  /* ---- browse ---- */
+  #browse h2{font-size:19px; margin:.1em 0 .5em; text-align:center;}
+  .bsearch{width:100%; padding:11px 14px; border-radius:12px; border:1px solid var(--line); background:var(--bg2); color:var(--fg); font-size:14px; margin-bottom:10px;}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;}
+  .chip{background:var(--bg2); border:1px solid var(--line); color:var(--mut); border-radius:999px; padding:6px 11px; font-size:12px; cursor:pointer;}
+  .chip.on{color:#0c0e14; background:var(--fg); border-color:var(--fg); font-weight:700;}
+  .bcount{color:var(--mut); font-size:12px; margin-bottom:8px; text-align:center;}
+  .qlist{display:flex; flex-direction:column; gap:7px;}
+  .qrow{
+    display:flex; align-items:center; gap:10px; text-align:left; width:100%;
+    background:var(--bg2); border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; color:var(--fg); font-size:13px; cursor:pointer; line-height:1.5;
+  }
+  .qrow:hover{border-color:#3a4256;}
+  .qrow .qtext{flex:1; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
+  .qrow .mk{flex:none; font-size:11px; font-weight:800; border-radius:999px; padding:2px 8px; white-space:nowrap;}
+  .mk.non{background:var(--card); color:var(--mut);}
+  .mk.maj{background:rgba(255,207,92,.16); color:var(--gold);}
+  .mk.min{background:rgba(34,195,201,.16); color:var(--a);}
+  .bmore{margin:12px auto 0; display:block; background:var(--bg2); border:1px solid var(--line); color:var(--fg); border-radius:10px; padding:10px 18px; font-size:13px; cursor:pointer;}
 
   /* ---- summary ---- */
   #summary h2{font-size:22px; margin:.2em 0 .1em; text-align:center;}
   .sumline{text-align:center; color:var(--mut); font-size:13px; margin-bottom:4px;}
-  .sumstat{display:flex; gap:10px; margin:16px 0 8px;}
+  .sumstat{display:flex; gap:10px; margin:16px 0 10px;}
   .sumstat div{flex:1; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 8px; text-align:center;}
   .sumstat b{display:block; font-size:22px; color:var(--gold);}
   .sumstat.min b{color:var(--a);}
-  .sumstat span{font-size:11px; color:var(--mut); letter-spacing:.06em;}
+  .sumstat span{font-size:11px; color:var(--mut); letter-spacing:.04em;}
   .rlist{margin:10px 0 0; display:flex; flex-direction:column; gap:8px;}
   .ritem{background:var(--bg2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:13px;}
   .ritem .rq{color:var(--mut); font-size:11px; margin-bottom:3px;}
   .ritem .rpick{font-weight:700;}
-  .ritem .rpick .rp{font-size:11px; font-weight:800; padding:1px 6px; border-radius:999px; margin-left:6px;}
+  .ritem .rp{font-size:11px; font-weight:800; padding:1px 6px; border-radius:999px; margin-left:6px;}
   .ritem .rp.maj{background:rgba(255,207,92,.16); color:var(--gold);}
   .ritem .rp.min{background:rgba(34,195,201,.16); color:var(--a);}
-  .again{margin-top:18px; width:100%; padding:14px; border:0; border-radius:12px; background:var(--bg2); border:1px solid var(--line); color:var(--fg); font-weight:700; cursor:pointer;}
+  .again{margin-top:10px; width:100%; padding:13px; border:0; border-radius:12px; background:var(--bg2); border:1px solid var(--line); color:var(--fg); font-weight:700; cursor:pointer;}
 
   footer{margin-top:26px; text-align:center; color:var(--mut); font-size:11px; line-height:1.8;}
   footer a{color:var(--mut);}
   .offline{color:var(--b); font-size:11px; text-align:center; margin-top:8px; min-height:1em;}
-
-  /* changelog */
   #cl{margin-top:14px;}
   #cl summary{color:var(--mut); font-size:11px; cursor:pointer; text-align:center;}
   #cl .clbody{font-size:11px; color:var(--mut); margin-top:8px;}
@@ -153,31 +169,36 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="logo"><b>一生</b><i>二択</i></div>
-    <button class="hbtn" id="toSummary">結果まとめ</button>
+    <button class="logo" id="home"><b>一生</b><i>二択</i></button>
+    <div class="hnav">
+      <button class="hbtn" id="toBrowse">質問一覧</button>
+      <button class="hbtn" id="toSummary">結果</button>
+    </div>
   </header>
 
   <main>
     <!-- intro -->
     <section id="intro">
-      <div class="qlead">LIFETIME DILEMMA</div>
+      <div class="qlead" style="text-align:center;color:var(--mut);font-size:13px;letter-spacing:.1em;">LIFETIME DILEMMA</div>
       <h1>一生に関わる二択を、<br>ひたすら選ぶだけ。</h1>
       <p>「一生、学校に行かなくていい。ただし宿題は毎日5倍」か「一生、学校には通う。ただし宿題ゼロ」か——。</p>
-      <p>選ぶと、<b>世界の何%が同じ方を選んだか</b>がわかります。全50問。正解はありません。</p>
-      <button class="start" id="startBtn">はじめる</button>
+      <p>選ぶと、<b>世界の何%が同じ方を選んだか</b>がわかります。全<span id="qtotal">500</span>問。正解はありません。</p>
+      <div class="btnrow">
+        <button class="start" id="startRandom">ランダムで始める</button>
+        <button class="start sub" id="startBrowse">気になる質問を選ぶ</button>
+      </div>
+      <div class="resume" id="resume"></div>
       <div class="offline" id="off1"></div>
     </section>
 
     <!-- question -->
     <section id="game" class="hide">
-      <div class="prog">
-        <span id="pnum">1 / 50</span>
-        <div class="progbar"><span id="pfill"></span></div>
-        <span id="pans">回答 0</span>
+      <div class="qtop">
+        <span class="cat" id="qcat">—</span>
+        <span id="qans">回答 0</span>
       </div>
-      <div class="qlead">あなたなら？</div>
-      <h2 class="qtitle" id="qtitle">—</h2>
-      <div class="choices" id="choices">
+      <h2 class="qtitle">この二択、どっち？</h2>
+      <div class="choices">
         <button class="choice ca" id="btnA" data-c="0">
           <div class="fill"></div>
           <span class="pct" id="pctA"></span>
@@ -199,9 +220,22 @@
       </div>
       <div class="verdict" id="verdict"></div>
       <div class="tally" id="tally"></div>
-      <button class="next" id="nextBtn">次の質問へ</button>
-      <button class="skip" id="skipBtn">この質問はとばす</button>
+      <button class="next" id="nextBtn">つぎの質問へ</button>
+      <div class="subnav">
+        <button id="skipBtn" class="skiponly">この質問はとばす</button>
+        <button id="gameToBrowse">一覧から選ぶ</button>
+      </div>
       <div class="offline" id="off2"></div>
+    </section>
+
+    <!-- browse -->
+    <section id="browse" class="hide">
+      <h2>気になる質問を選ぶ</h2>
+      <input class="bsearch" id="bsearch" type="search" placeholder="キーワードで探す（例：お金、記憶、寿命）">
+      <div class="chips" id="chips"></div>
+      <div class="bcount" id="bcount">—</div>
+      <div class="qlist" id="qlist"></div>
+      <button class="bmore hide" id="bmore">もっと見る</button>
     </section>
 
     <!-- summary -->
@@ -212,9 +246,10 @@
         <div><b id="sMaj">0</b><span>多数派だった</span></div>
         <div class="min"><b id="sMin">0</b><span>少数派だった</span></div>
       </div>
+      <button class="again" id="contBtn">ランダムで続ける</button>
+      <button class="again" id="toBrowse2">質問一覧から選ぶ</button>
+      <button class="again" id="againBtn">回答を全部リセット</button>
       <div class="rlist" id="rlist"></div>
-      <button class="again" id="contBtn">残りの質問を続ける</button>
-      <button class="again" id="againBtn">最初からやり直す</button>
     </section>
   </main>
 

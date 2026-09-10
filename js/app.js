@@ -3,82 +3,77 @@
   "use strict";
 
   var Q = window.QUESTIONS || [];
-  var Net = window.NibutakuNet || { online: false, fetchAll: function () { return Promise.resolve(null); }, vote: function () { return Promise.resolve(null); } };
+  var CATS = window.CATEGORIES || [{ key: "all", label: "すべて", emoji: "🎲" }];
+  var Net = window.NibutakuNet || {
+    online: false,
+    fetchAll: function () { return Promise.resolve(null); },
+    vote: function () { return Promise.resolve(null); },
+  };
   var SKEY = "nibutaku_v1";
-
   var $ = function (id) { return document.getElementById(id); };
 
-  // ---- state ----
+  var qmap = {};
+  Q.forEach(function (q) { qmap[q.id] = q; });
+
   var state = load();
-  var serverTally = null; // { qid: {a,b} } サーバー集計
-  var idx = 0;            // state.order 内の現在位置
+  var serverTally = null;      // { qid: {a,b} }
+  var current = null;          // 表示中の qid
+  var returnTo = "random";     // "random" | "browse"
   var revealed = false;
+  var browseCat = "all";
+  var browseLimit = 40;
 
   function load() {
     try {
-      var raw = localStorage.getItem(SKEY);
-      if (raw) {
-        var s = JSON.parse(raw);
-        if (s && s.answers && Array.isArray(s.order) && s.order.length === Q.length) return s;
-      }
+      var s = JSON.parse(localStorage.getItem(SKEY) || "{}");
+      if (s && s.answers && typeof s.answers === "object") return { answers: s.answers };
     } catch (e) {}
-    return { answers: {}, order: shuffle(Q.map(function (q) { return q.id; })) };
+    return { answers: {} };
   }
-  function save() {
-    try { localStorage.setItem(SKEY, JSON.stringify(state)); } catch (e) {}
-  }
-  function shuffle(arr) {
-    for (var i = arr.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
-      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
-    }
-    return arr;
-  }
-  function qById(id) { for (var i = 0; i < Q.length; i++) if (Q[i].id === id) return Q[i]; return null; }
+  function save() { try { localStorage.setItem(SKEY, JSON.stringify(state)); } catch (e) {} }
   function answeredCount() { return Object.keys(state.answers).length; }
+  function catLabel(k) {
+    for (var i = 0; i < CATS.length; i++) if (CATS[i].key === k) return CATS[i].emoji + " " + CATS[i].label;
+    return k;
+  }
 
-  // seed(種) + サーバー集計 を合算した {a,b}
+  // 表示する割合 = 種(seedSplit) + サーバー実投票
   function combined(q) {
-    var a = q.sa || 0, b = q.sb || 0;
+    var s = window.seedSplit ? window.seedSplit(q.id) : { a: 50, b: 50 };
+    var a = s.a, b = s.b;
     if (serverTally && serverTally[q.id]) { a += serverTally[q.id].a; b += serverTally[q.id].b; }
     return { a: a, b: b };
   }
+  function pctA(q) { var c = combined(q); return Math.round(c.a / ((c.a + c.b) || 1) * 100); }
 
-  // ---- ?reset ----
   if (/[?&]reset\b/.test(location.search)) {
     try { localStorage.removeItem(SKEY); } catch (e) {}
-    state = { answers: {}, order: shuffle(Q.map(function (q) { return q.id; })) };
-    save();
+    state = { answers: {} };
   }
 
-  // ---- screens ----
   function show(which) {
-    ["intro", "game", "summary"].forEach(function (s) {
+    ["intro", "game", "browse", "summary"].forEach(function (s) {
       $(s).classList.toggle("hide", s !== which);
     });
     window.scrollTo(0, 0);
   }
 
-  // 次に出すべき質問(未回答の先頭)。全部回答済みなら -1
-  function firstUnanswered() {
-    for (var i = 0; i < state.order.length; i++) {
-      if (!(state.order[i] in state.answers)) return i;
-    }
-    return -1;
+  function pickRandom() {
+    var pool = Q.filter(function (q) { return !(q.id in state.answers); });
+    if (!pool.length) pool = Q;
+    return pool[Math.floor(Math.random() * pool.length)].id;
   }
 
-  function renderProgress() {
-    $("pnum").textContent = (idx + 1) + " / " + Q.length;
-    $("pfill").style.width = (answeredCount() / Q.length * 100) + "%";
-    $("pans").textContent = "回答 " + answeredCount();
-  }
-
-  function renderQuestion() {
+  // ---- 質問画面 ----
+  function openQuestion(qid, from) {
+    current = qid;
+    returnTo = from || "random";
     revealed = false;
-    var q = qById(state.order[idx]);
+    var q = qmap[qid];
     if (!q) return;
     $("game").classList.remove("revealed");
-    $("qtitle").textContent = "この二択、どっち？";
+    $("qcat").textContent = catLabel(q.cat);
+    $("qans").textContent = "回答 " + answeredCount();
     $("txtA").textContent = q.a;
     $("txtB").textContent = q.b;
     $("btnA").disabled = false;
@@ -91,9 +86,9 @@
     $("btnB").querySelector(".fill").style.width = "0";
     $("verdict").innerHTML = "";
     $("tally").textContent = "";
-    renderProgress();
-
-    // すでに回答済みの質問なら、その結果をそのまま表示
+    $("nextBtn").textContent = returnTo === "browse" ? "一覧にもどる" : "つぎの質問へ";
+    $("skipBtn").style.display = returnTo === "browse" ? "none" : "";
+    show("game");
     if (q.id in state.answers) reveal(q, state.answers[q.id], true);
   }
 
@@ -105,145 +100,187 @@
     $("btnA").classList.toggle("picked", choice === 0);
     $("btnB").classList.toggle("picked", choice === 1);
 
-    var c = combined(q);
-    var total = c.a + c.b || 1;
-    var pa = Math.round(c.a / total * 100);
-    var pb = 100 - pa;
+    var c = combined(q), total = c.a + c.b || 1;
+    var pa = Math.round(c.a / total * 100), pb = 100 - pa;
     $("pctA").textContent = pa + "%";
     $("pctB").textContent = pb + "%";
-
     var setW = function () {
       $("btnA").querySelector(".fill").style.width = pa + "%";
       $("btnB").querySelector(".fill").style.width = pb + "%";
     };
     if (instant) setW(); else setTimeout(setW, 60);
 
-    var myPct = choice === 0 ? pa : pb;
-    var otherPct = 100 - myPct;
-    var vtxt;
-    if (myPct > otherPct) vtxt = '世界の <span class="maj">' + myPct + '%</span> が、あなたと同じ選択';
-    else if (myPct < otherPct) vtxt = 'あなたは <span class="min">少数派</span>。同じ選択は世界の ' + myPct + '%';
-    else vtxt = '世界はちょうど真っ二つ（' + myPct + '% : ' + otherPct + '%）';
-    $("verdict").innerHTML = vtxt;
+    var my = choice === 0 ? pa : pb, other = 100 - my, t;
+    if (my > other) t = '世界の <span class="maj">' + my + '%</span> が、あなたと同じ選択';
+    else if (my < other) t = 'あなたは <span class="min">少数派</span>。同じ選択は世界の ' + my + '%';
+    else t = '世界はちょうど真っ二つ（' + my + '% : ' + other + '%）';
+    $("verdict").innerHTML = t;
     $("tally").textContent = "これまでに " + (c.a + c.b).toLocaleString() + " 人が回答";
   }
 
   function choose(choice) {
-    if (revealed) return;
-    var q = qById(state.order[idx]);
-    if (!q) return;
+    if (revealed || !current) return;
+    var q = qmap[current];
     state.answers[q.id] = choice;
     save();
     reveal(q, choice, false);
-    renderProgress();
-
-    // サーバーに1票入れて最新値で微調整
+    $("qans").textContent = "回答 " + answeredCount();
     Net.vote(q.id, choice).then(function (res) {
       if (res) {
         serverTally = serverTally || {};
         serverTally[q.id] = res;
-        if (revealed && state.order[idx] === q.id) reveal(q, choice, true);
+        if (revealed && current === q.id) reveal(q, choice, true);
       }
     });
   }
 
-  function goNext() {
-    var nx = firstUnanswered();
-    if (nx === -1) { renderSummary(); show("summary"); return; }
-    idx = nx;
-    renderQuestion();
+  function nextAction() {
+    if (returnTo === "browse") { show("browse"); renderList(); return; }
+    openQuestion(pickRandom(), "random");
   }
 
-  function skip() {
-    // 今の質問を未回答のまま列の最後尾へ回す
-    var id = state.order.splice(idx, 1)[0];
-    state.order.push(id);
-    save();
-    var nx = firstUnanswered();
-    idx = nx === -1 ? state.order.length - 1 : nx;
-    renderQuestion();
+  // ---- 一覧画面 ----
+  function renderChips() {
+    $("chips").innerHTML = CATS.map(function (c) {
+      var n = c.key === "all" ? Q.length : Q.filter(function (q) { return q.cat === c.key; }).length;
+      return '<button class="chip' + (c.key === browseCat ? " on" : "") + '" data-k="' + c.key + '">' +
+        c.emoji + " " + c.label + " " + n + "</button>";
+    }).join("");
+    Array.prototype.forEach.call($("chips").children, function (el) {
+      el.addEventListener("click", function () {
+        browseCat = el.dataset.k;
+        browseLimit = 40;
+        renderChips();
+        renderList();
+      });
+    });
   }
 
+  function browseFiltered() {
+    var kw = ($("bsearch").value || "").trim();
+    return Q.filter(function (q) {
+      if (browseCat !== "all" && q.cat !== browseCat) return false;
+      if (kw && (q.a + q.b).indexOf(kw) < 0) return false;
+      return true;
+    });
+  }
+
+  function renderList() {
+    var list = browseFiltered();
+    var doneN = list.filter(function (q) { return q.id in state.answers; }).length;
+    $("bcount").textContent = list.length + " 問（回答済み " + doneN + "）";
+    var slice = list.slice(0, browseLimit);
+    $("qlist").innerHTML = slice.map(function (q) {
+      var mk = '<span class="mk non">未回答</span>';
+      if (q.id in state.answers) {
+        var choice = state.answers[q.id], pa = pctA(q), my = choice === 0 ? pa : 100 - pa;
+        var cls = my > 50 ? "maj" : (my < 50 ? "min" : "non");
+        mk = '<span class="mk ' + cls + '">' + (choice === 0 ? "A" : "B") + " " + my + '%</span>';
+      }
+      return '<button class="qrow" data-id="' + q.id + '"><span class="qtext">' +
+        esc(q.a) + " ／ " + esc(q.b) + "</span>" + mk + "</button>";
+    }).join("");
+    Array.prototype.forEach.call($("qlist").children, function (el) {
+      el.addEventListener("click", function () { openQuestion(el.dataset.id, "browse"); });
+    });
+    $("bmore").classList.toggle("hide", browseLimit >= list.length);
+  }
+
+  function openBrowse() { show("browse"); renderChips(); renderList(); }
+
+  // ---- 結果まとめ ----
   function renderSummary() {
     var ids = Object.keys(state.answers);
-    var maj = 0, min = 0;
-    var rows = "";
-    state.order.forEach(function (id) {
-      if (!(id in state.answers)) return;
-      var q = qById(id); if (!q) return;
-      var choice = state.answers[id];
-      var c = combined(q);
-      var total = c.a + c.b || 1;
-      var pa = Math.round(c.a / total * 100);
-      var myPct = choice === 0 ? pa : 100 - pa;
-      var isMaj = myPct > 50, tie = myPct === 50;
-      if (isMaj) maj++; else if (!tie) min++;
+    var maj = 0, min = 0, rows = "";
+    Q.forEach(function (q) {
+      if (!(q.id in state.answers)) return;
+      var choice = state.answers[q.id], pa = pctA(q), my = choice === 0 ? pa : 100 - pa;
+      var tie = my === 50, isMaj = my > 50;
+      if (!tie) { if (isMaj) maj++; else min++; }
       var label = tie ? '<span class="rp">五分五分</span>'
-        : isMaj ? '<span class="rp maj">多数派 ' + myPct + '%</span>'
-                : '<span class="rp min">少数派 ' + myPct + '%</span>';
-      rows += '<div class="ritem"><div class="rq">' + esc(q.a) + " ／ " + esc(q.b) + '</div>' +
-        '<div class="rpick">' + (choice === 0 ? "A" : "B") + '：' + esc(choice === 0 ? q.a : q.b) + label + '</div></div>';
+        : isMaj ? '<span class="rp maj">多数派 ' + my + '%</span>'
+                : '<span class="rp min">少数派 ' + my + '%</span>';
+      rows += '<div class="ritem"><div class="rq">' + esc(q.a) + " ／ " + esc(q.b) +
+        '</div><div class="rpick">' + (choice === 0 ? "A" : "B") + "：" +
+        esc(choice === 0 ? q.a : q.b) + label + "</div></div>";
     });
     $("sMaj").textContent = maj;
     $("sMin").textContent = min;
-    $("sumline").textContent = ids.length < Q.length
-      ? "回答 " + ids.length + " / " + Q.length + " 問"
-      : "全 " + Q.length + " 問、選び終わりました";
-    $("rlist").innerHTML = rows || '<div class="ritem">まだ何も選んでいません。</div>';
-    $("contBtn").classList.toggle("hide", ids.length >= Q.length || ids.length === 0);
+    $("sumline").textContent = ids.length === 0
+      ? "まだ何も選んでいません"
+      : "これまでに " + ids.length + " 問に回答（全 " + Q.length + " 問）";
+    $("rlist").innerHTML = rows;
+    $("contBtn").classList.toggle("hide", ids.length >= Q.length);
   }
 
-  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
 
-  // ---- changelog ----
-  (function clog() {
-    var box = $("clbody"); if (!box || !window.CHANGELOG) return;
-    box.innerHTML = window.CHANGELOG.map(function (e) {
-      return "<h4>v" + e.v + " (" + e.date + ")</h4><ul>" +
-        e.notes.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>";
-    }).join("");
+  (function () {
+    var box = $("clbody");
+    if (box && window.CHANGELOG) {
+      box.innerHTML = window.CHANGELOG.map(function (e) {
+        return "<h4>v" + e.v + " (" + e.date + ")</h4><ul>" +
+          e.notes.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>";
+      }).join("");
+    }
   })();
 
-  // ---- events ----
-  $("startBtn").addEventListener("click", function () {
-    idx = firstUnanswered();
-    if (idx === -1) { renderSummary(); show("summary"); return; }
-    show("game");
-    renderQuestion();
-  });
+  function updateResume() {
+    var n = answeredCount();
+    $("resume").textContent = n > 0 ? "これまで " + n + " 問に回答ずみ（続きから遊べます）" : "";
+    $("qtotal").textContent = Q.length;
+  }
+
+  // ---- イベント ----
+  $("startRandom").addEventListener("click", function () { openQuestion(pickRandom(), "random"); });
+  $("startBrowse").addEventListener("click", openBrowse);
   $("btnA").addEventListener("click", function () { choose(0); });
   $("btnB").addEventListener("click", function () { choose(1); });
-  $("nextBtn").addEventListener("click", goNext);
-  $("skipBtn").addEventListener("click", skip);
+  $("nextBtn").addEventListener("click", nextAction);
+  $("skipBtn").addEventListener("click", function () { openQuestion(pickRandom(), "random"); });
+  $("gameToBrowse").addEventListener("click", openBrowse);
+  $("home").addEventListener("click", function () { updateResume(); show("intro"); });
+  $("toBrowse").addEventListener("click", openBrowse);
+  $("toBrowse2").addEventListener("click", openBrowse);
   $("toSummary").addEventListener("click", function () { renderSummary(); show("summary"); });
-  $("contBtn").addEventListener("click", function () {
-    var nx = firstUnanswered();
-    if (nx === -1) return;
-    idx = nx; show("game"); renderQuestion();
-  });
+  $("contBtn").addEventListener("click", function () { openQuestion(pickRandom(), "random"); });
   $("againBtn").addEventListener("click", function () {
-    state = { answers: {}, order: shuffle(Q.map(function (q) { return q.id; })) };
-    save(); idx = 0; show("intro");
+    if (confirm("回答をすべて消します。よろしいですか？")) {
+      state = { answers: {} }; save(); updateResume(); renderSummary();
+    }
   });
+  $("bsearch").addEventListener("input", function () { browseLimit = 40; renderList(); });
+  $("bmore").addEventListener("click", function () { browseLimit += 60; renderList(); });
 
   document.addEventListener("keydown", function (e) {
     if ($("game").classList.contains("hide")) return;
     if (!revealed && (e.key === "1" || e.key === "a" || e.key === "ArrowLeft")) choose(0);
     else if (!revealed && (e.key === "2" || e.key === "b" || e.key === "ArrowRight")) choose(1);
-    else if (revealed && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); goNext(); }
+    else if (revealed && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); nextAction(); }
   });
 
-  // ---- init ----
-  if (answeredCount() > 0) $("sumline").textContent = "つづきから遊べます";
+  // ---- 初期化 ----
+  updateResume();
   var offMsg = "オフライン中：世界の割合はおおよその値で表示しています";
   if (!Net.online) { $("off1").textContent = offMsg; $("off2").textContent = offMsg; }
 
   Net.fetchAll().then(function (map) {
     if (map) {
       serverTally = map;
-      if (!$("game").classList.contains("hide")) renderQuestion();
+      $("off1").textContent = "";
+      $("off2").textContent = "";
+      if (!$("game").classList.contains("hide") && current) {
+        var q = qmap[current];
+        if (q && q.id in state.answers) reveal(q, state.answers[q.id], true);
+      }
+      if (!$("browse").classList.contains("hide")) renderList();
     } else if (Net.online) {
-      $("off1").textContent = offMsg; $("off2").textContent = offMsg;
+      $("off1").textContent = offMsg;
+      $("off2").textContent = offMsg;
     }
   });
 
